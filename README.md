@@ -125,22 +125,22 @@ sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subne
 
 ### Script Parameters
 
-| Flag             | Short | Description                                      | Default            | Example                   |
-| ---------------- | ----- | ------------------------------------------------ | ------------------ | ------------------------- |
-| `--container ID` | `-c`  | LXC container ID to configure                    | `100`              | `--container 102`         |
-| `--subnet CIDR`  | `-s`  | Subnet or IP to advertise (CIDR or single IP)    | `192.168.128.0/23` | `--subnet 192.168.1.0/24` |
-| `--ipaddr CIDR`  | `-i`  | Alias for --subnet                               | `192.168.128.0/23` | `--ipaddr 192.168.129.59` |
-| `--help`         | `-h`  | Show help message                                | N/A                | `--help`                  |
+| Flag             | Short | Description                                   | Default            | Example                   |
+| ---------------- | ----- | --------------------------------------------- | ------------------ | ------------------------- |
+| `--container ID` | `-c`  | LXC container ID to configure                 | `100`              | `--container 102`         |
+| `--subnet CIDR`  | `-s`  | Subnet or IP to advertise (CIDR or single IP) | `192.168.128.0/23` | `--subnet 192.168.1.0/24` |
+| `--ipaddr CIDR`  | `-i`  | Alias for --subnet                            | `192.168.128.0/23` | `--ipaddr 192.168.129.59` |
+| `--help`         | `-h`  | Show help message                             | N/A                | `--help`                  |
 
 ### Single IP vs Subnet Range
 
 The script now supports both subnet ranges and single IP addresses:
 
 - **Subnet Range** (e.g., `192.168.1.0/24`): Advertises an entire range of IP addresses (256 addresses in this example). Use this when you want to expose multiple devices on your network.
-  
 - **Single IP** (e.g., `192.168.129.59`): Automatically converts to `/32` CIDR notation, advertising only that specific IP address. Use this when you want to expose just one specific device or service.
 
 **Examples:**
+
 ```bash
 # Advertise entire subnet (256 addresses: 192.168.1.0 - 192.168.1.255)
 ./subnet-tailscale.sh --subnet 192.168.1.0/24
