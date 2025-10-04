@@ -4,10 +4,27 @@ This script automates the setup of Tailscale subnet routing in a Proxmox LXC con
 
 ## Overview
 
-The script configures an LXC container to act as a Tailscale subnet router, which allows devices on your Tailscale network to access resources on your local network (e.g., `192.168.128.0/23`) through the container.
+The script configures an LXC container to act as a Tailscale subnet router, which allows devices on your Tailscale network to access resources on your local network through the container.
+
+### Auto-Detection Feature
+
+By default, the script automatically detects and uses the container's IP address, making setup even simpler. You can simply run:
+
+```bash
+sudo ./subnet-tailscale.sh --container 102
+```
+
+The script will:
+
+1. Start the container if it's not running
+2. Detect the container's primary IPv4 address
+3. Configure Tailscale to advertise that IP as a `/32` route
+
+This is perfect for exposing a specific service or application running in the container without needing to manually specify IP addresses. You can still override this behavior by explicitly providing a `--subnet` parameter if you need to advertise a different subnet or IP range.
 
 ## Features
 
+- ✅ **Automatic container IP detection** - Auto-detects the container's IP address if no subnet specified
 - ✅ Automatic Tailscale installation in LXC container
 - ✅ IP forwarding configuration
 - ✅ LXC container permission setup for TUN/TAP devices
@@ -32,16 +49,16 @@ The script configures an LXC container to act as a Tailscale subnet router, whic
 ### Direct Execution
 
 ```bash
-# Run with default settings (container ID: 100, subnet: 192.168.128.0/23)
+# Run with default settings (container ID: 100, auto-detect container IP)
 sudo ./subnet-tailscale.sh
 
 # Show help and available options
 sudo ./subnet-tailscale.sh --help
 
-# Run with specific container ID
+# Run with specific container ID (auto-detect its IP)
 sudo ./subnet-tailscale.sh --container 102
 
-# Run with custom subnet (using --subnet flag)
+# Run with custom subnet (overrides auto-detection)
 sudo ./subnet-tailscale.sh --subnet 192.168.1.0/24
 
 # Run with single IP address (auto-converts to /32)
@@ -70,16 +87,16 @@ Execute the script directly from GitHub:
 **For Proxmox VE hosts (no sudo required, run as root):**
 
 ```bash
-# Default settings (container: 100, subnet: 192.168.128.0/23)
+# Default settings (container: 100, auto-detect container IP)
 curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash
 
 # Show help
 curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash -s -- --help
 
-# Specific container ID
+# Specific container ID (auto-detect its IP)
 curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash -s -- --container 102
 
-# Custom subnet
+# Custom subnet (overrides auto-detection)
 curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash -s -- --subnet 192.168.1.0/24
 
 # Single IP address (auto-converts to /32)
@@ -98,7 +115,7 @@ curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-prox
 **For other Linux systems (with sudo):**
 
 ```bash
-# Default settings (container: 100, subnet: 192.168.128.0/23)
+# Default settings (container: 100, auto-detect container IP)
 curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | sudo bash
 
 # Custom container and subnet
@@ -125,38 +142,49 @@ sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subne
 
 ### Script Parameters
 
-| Flag             | Short | Description                                   | Default            | Example                   |
-| ---------------- | ----- | --------------------------------------------- | ------------------ | ------------------------- |
-| `--container ID` | `-c`  | LXC container ID to configure                 | `100`              | `--container 102`         |
-| `--subnet CIDR`  | `-s`  | Subnet or IP to advertise (CIDR or single IP) | `192.168.128.0/23` | `--subnet 192.168.1.0/24` |
-| `--ipaddr CIDR`  | `-i`  | Alias for --subnet                            | `192.168.128.0/23` | `--ipaddr 192.168.129.59` |
-| `--help`         | `-h`  | Show help message                             | N/A                | `--help`                  |
+| Flag             | Short | Description                                   | Default                  | Example                   |
+| ---------------- | ----- | --------------------------------------------- | ------------------------ | ------------------------- |
+| `--container ID` | `-c`  | LXC container ID to configure                 | `100`                    | `--container 102`         |
+| `--subnet CIDR`  | `-s`  | Subnet or IP to advertise (CIDR or single IP) | Auto-detect container IP | `--subnet 192.168.1.0/24` |
+| `--ipaddr CIDR`  | `-i`  | Alias for --subnet                            | Auto-detect container IP | `--ipaddr 192.168.129.59` |
+| `--help`         | `-h`  | Show help message                             | N/A                      | `--help`                  |
 
-### Single IP vs Subnet Range
+### Auto-Detection vs Manual Configuration
 
-The script now supports both subnet ranges and single IP addresses:
+The script supports three modes for specifying what to advertise:
 
-- **Subnet Range** (e.g., `192.168.1.0/24`): Advertises an entire range of IP addresses (256 addresses in this example). Use this when you want to expose multiple devices on your network.
-- **Single IP** (e.g., `192.168.129.59`): Automatically converts to `/32` CIDR notation, advertising only that specific IP address. Use this when you want to expose just one specific device or service.
+1. **Auto-Detection (Default)**: If no subnet is specified, the script automatically detects the container's IP address and advertises it as a `/32` route. This is the simplest and most common use case.
 
-**Examples:**
+   ```bash
+   # Auto-detect container 100's IP
+   ./subnet-tailscale.sh
 
-```bash
-# Advertise entire subnet (256 addresses: 192.168.1.0 - 192.168.1.255)
-./subnet-tailscale.sh --subnet 192.168.1.0/24
+   # Auto-detect container 102's IP
+   ./subnet-tailscale.sh --container 102
+   ```
 
-# Advertise only a single IP (192.168.129.59/32)
-./subnet-tailscale.sh --subnet 192.168.129.59
-```
+2. **Subnet Range**: Advertises an entire range of IP addresses (e.g., `192.168.1.0/24` = 256 addresses). Use this when you want to expose multiple devices on your network.
+
+   ```bash
+   # Advertise entire subnet (256 addresses: 192.168.1.0 - 192.168.1.255)
+   ./subnet-tailscale.sh --subnet 192.168.1.0/24
+   ```
+
+3. **Single IP**: Manually specify a single IP address (automatically converts to `/32` CIDR notation). Use this when you want to expose a specific IP different from the container's IP.
+
+   ```bash
+   # Advertise only a single IP (192.168.129.59/32)
+   ./subnet-tailscale.sh --subnet 192.168.129.59
+   ```
 
 ### Configurable Variables
 
-The script now uses command-line flags for configuration:
+The script uses command-line flags for configuration:
 
 ```bash
 # Default values (used when flags are not provided)
 CONTAINER_ID=100                 # Default container ID
-SUBNET="192.168.128.0/23"       # Default subnet to advertise
+SUBNET=""                        # Auto-detect container IP if not specified
 ```
 
 ### Available Flags
@@ -178,7 +206,10 @@ The script includes automatic validation for subnet format:
 ### Custom Configuration Examples
 
 ```bash
-# Example: Use container 102 with subnet 192.168.1.0/24
+# Example: Auto-detect IP for container 102
+sudo ./subnet-tailscale.sh --container 102
+
+# Example: Use container 102 with custom subnet
 sudo ./subnet-tailscale.sh --container 102 --subnet 192.168.1.0/24
 
 # Example: Use short flags
@@ -187,10 +218,10 @@ sudo ./subnet-tailscale.sh -c 101 -s 10.0.0.0/8
 # Example: Use --ipaddr alias
 sudo ./subnet-tailscale.sh --container 102 --ipaddr 192.168.100.0/28
 
-# Example: Only change container (use default subnet)
-sudo ./subnet-tailscale.sh --container 105
+# Example: Auto-detect IP for default container (100)
+sudo ./subnet-tailscale.sh
 
-# Example: Only change subnet (use default container)
+# Example: Only change subnet for default container
 sudo ./subnet-tailscale.sh --subnet 172.16.0.0/16
 ```
 
@@ -198,13 +229,14 @@ sudo ./subnet-tailscale.sh --subnet 172.16.0.0/16
 
 1. **Validation**: Checks for root privileges and container existence
 2. **Container Management**: Starts the container if it's not running
-3. **Tailscale Installation**: Downloads and installs Tailscale in the container
-4. **Network Configuration**: Enables IP forwarding for IPv4 and IPv6
-5. **LXC Permissions**: Configures container permissions for TUN/TAP devices
-6. **Performance Optimization**: Enables UDP GRO forwarding on the bridge interface
-7. **Service Startup**: Restarts container and starts Tailscale with subnet routing
-8. **Persistence Configuration**: Creates systemd service for automatic startup
-9. **Backup**: Creates a backup of the original container configuration
+3. **IP Detection**: Automatically detects the container's IP address (if no subnet specified)
+4. **Tailscale Installation**: Downloads and installs Tailscale in the container
+5. **Network Configuration**: Enables IP forwarding for IPv4 and IPv6
+6. **LXC Permissions**: Configures container permissions for TUN/TAP devices
+7. **Performance Optimization**: Enables UDP GRO forwarding on the bridge interface
+8. **Service Startup**: Restarts container and starts Tailscale with subnet routing
+9. **Persistence Configuration**: Creates systemd service for automatic startup
+10. **Backup**: Creates a backup of the original container configuration
 
 ## Persistence and Auto-Start
 
@@ -308,6 +340,19 @@ Use --help for usage information
 ```
 
 Solution: Use `--help` to see available options, or check for typos in flag names.
+
+**Could not auto-detect container IP:**
+
+```bash
+Warning: Could not auto-detect container IP address
+Please specify a subnet manually using --subnet option
+```
+
+Solution: The container may not have a network interface configured or may not have an IP address assigned. Either configure the container's network first, or manually specify a subnet:
+
+```bash
+sudo ./subnet-tailscale.sh --container 102 --subnet 192.168.1.0/24
+```
 
 **Tailscale authentication:**
 After running the script, you'll need to authenticate the device through the Tailscale admin panel.

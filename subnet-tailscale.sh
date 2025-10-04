@@ -5,7 +5,8 @@ set -e
 
 # Default configuration
 CONTAINER_ID=100
-SUBNET="192.168.128.0/23"
+SUBNET=""
+AUTO_DETECT_IP=true
 
 # Function to show usage
 show_usage() {
@@ -16,16 +17,17 @@ Setup Tailscale subnet routing in a Proxmox LXC container.
 
 OPTIONS:
     -c, --container ID      LXC container ID to configure (default: 100)
-    -s, --subnet CIDR       Subnet or IP to advertise (default: 192.168.128.0/23)
+    -s, --subnet CIDR       Subnet or IP to advertise (default: auto-detect container IP)
                             - Use CIDR notation for subnets: 192.168.1.0/24
                             - Use single IP for specific host: 192.168.1.10 (auto-converts to /32)
+                            - If not specified, will auto-detect the container's IP address
     -i, --ipaddr CIDR       Alias for --subnet
     -h, --help              Show this help message
 
 EXAMPLES:
-    $0                                          # Use defaults (container 100, subnet 192.168.128.0/23)
-    $0 --container 102                          # Use container 102 with default subnet
-    $0 --subnet 192.168.1.0/24                 # Advertise entire /24 subnet
+    $0                                          # Use defaults (container 100, auto-detect IP)
+    $0 --container 102                          # Use container 102 with auto-detected IP
+    $0 --subnet 192.168.1.0/24                 # Advertise entire /24 subnet (overrides auto-detect)
     $0 --subnet 192.168.129.59                 # Advertise single IP (auto-converts to /32)
     $0 --container 102 --subnet 192.168.1.10   # Custom container with single IP
     $0 -c 102 -s 192.168.1.0/24               # Short form flags
@@ -42,6 +44,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -s|--subnet|-i|--ipaddr)
             SUBNET="$2"
+            AUTO_DETECT_IP=false
             shift 2
             ;;
         -h|--help)
@@ -56,16 +59,57 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Auto-convert single IP to /32 CIDR notation
-if [[ $SUBNET =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && [[ ! $SUBNET =~ / ]]; then
-    echo "Note: Converting single IP address to /32 CIDR notation: $SUBNET -> $SUBNET/32"
-    SUBNET="$SUBNET/32"
-fi
-
 # Validate container ID is numeric
 if ! [[ "$CONTAINER_ID" =~ ^[0-9]+$ ]]; then
     echo "Error: Container ID must be numeric"
     exit 1
+fi
+
+# Check if container exists early
+if ! pct status $CONTAINER_ID &> /dev/null; then
+    echo "Error: Container $CONTAINER_ID does not exist"
+    exit 1
+fi
+
+# Check if container is running
+if [ "$(pct status $CONTAINER_ID | grep -oP '(?<=status: )\w+')" != "running" ]; then
+    echo "Starting container $CONTAINER_ID..."
+    pct start $CONTAINER_ID
+    sleep 5
+fi
+
+# Function to get container IP address
+get_container_ip() {
+    local container_id=$1
+    # Try to get the primary IP address from the container
+    # This filters out localhost and gets the first valid IPv4 address
+    local ip=$(pct exec $container_id -- ip -4 addr show scope global | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
+    echo "$ip"
+}
+
+# Auto-detect container IP if subnet not specified
+if [ "$AUTO_DETECT_IP" = true ] && [ -z "$SUBNET" ]; then
+    echo "Auto-detecting container IP address..."
+    DETECTED_IP=$(get_container_ip $CONTAINER_ID)
+    
+    if [ -n "$DETECTED_IP" ]; then
+        SUBNET="$DETECTED_IP/32"
+        echo "Detected container IP: $DETECTED_IP"
+        echo "Will advertise: $SUBNET"
+    else
+        echo "Warning: Could not auto-detect container IP address"
+        echo "Please specify a subnet manually using --subnet option"
+        exit 1
+    fi
+elif [ -z "$SUBNET" ]; then
+    echo "Error: No subnet specified and auto-detection disabled"
+    exit 1
+fi
+
+# Auto-convert single IP to /32 CIDR notation if needed
+if [[ $SUBNET =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && [[ ! $SUBNET =~ / ]]; then
+    echo "Note: Converting single IP address to /32 CIDR notation: $SUBNET -> $SUBNET/32"
+    SUBNET="$SUBNET/32"
 fi
 
 # Function to validate subnet format
@@ -111,19 +155,6 @@ echo ""
 if [ "$EUID" -ne 0 ]; then 
     echo "Please run as root"
     exit 1
-fi
-
-# Check if container exists
-if ! pct status $CONTAINER_ID &> /dev/null; then
-    echo "Error: Container $CONTAINER_ID does not exist"
-    exit 1
-fi
-
-# Check if container is running
-if [ "$(pct status $CONTAINER_ID | grep -oP '(?<=status: )\w+')" != "running" ]; then
-    echo "Starting container $CONTAINER_ID..."
-    pct start $CONTAINER_ID
-    sleep 5
 fi
 
 echo "Step 1: Installing Tailscale in container..."
