@@ -203,11 +203,13 @@ After the script completes successfully:
 ## Files Modified/Created
 
 **Host System:**
+
 - `/etc/pve/lxc/{CONTAINER_ID}.conf` - LXC container configuration
 - `/etc/pve/lxc/{CONTAINER_ID}.conf.backup` - Backup of original configuration
 - `/etc/network/if-up.d/ethtool-gro` - Persistent UDP GRO configuration
 
 **Inside Container:**
+
 - `/etc/sysctl.conf` - IP forwarding configuration
 - `/usr/local/bin/tailscale-startup.sh` - Startup script for subnet routing
 - `/etc/systemd/system/tailscale-subnet.service` - Systemd service for persistence
