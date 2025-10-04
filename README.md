@@ -19,9 +19,11 @@ The script configures an LXC container to act as a Tailscale subnet router, whic
 ## Requirements
 
 - Proxmox VE host
-- Root access on the Proxmox host
+- Root access on the Proxmox host (script must be run as root)
 - LXC container (will be created if specified ID doesn't exist)
 - Internet connectivity for Tailscale installation
+
+**Note:** Proxmox VE hosts typically don't have `sudo` installed by default. The script is designed to run as root, which is the standard way to manage Proxmox systems.
 
 ## Usage
 
@@ -57,30 +59,51 @@ sudo ./subnet-tailscale.sh -c 102 --ipaddr 10.0.0.0/16
 
 Execute the script directly from GitHub:
 
+**For Proxmox VE hosts (no sudo required, run as root):**
+
+```bash
+# Default settings (container: 100, subnet: 192.168.128.0/23)
+curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash
+
+# Show help
+curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash -s -- --help
+
+# Specific container ID
+curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash -s -- --container 102
+
+# Custom subnet
+curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash -s -- --subnet 192.168.1.0/24
+
+# Custom container and subnet
+curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash -s -- --container 102 --subnet 192.168.1.0/24
+
+# Using short flags
+curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash -s -- -c 102 -s 192.168.1.0/24
+
+# Using --ipaddr alias
+curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash -s -- --ipaddr 10.0.0.0/16
+```
+
+**For other Linux systems (with sudo):**
+
 ```bash
 # Default settings (container: 100, subnet: 192.168.128.0/23)
 curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | sudo bash
 
-# Show help
-curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | sudo bash -s -- --help
-
-# Specific container ID
-curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | sudo bash -s -- --container 102
-
-# Custom subnet
-curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | sudo bash -s -- --subnet 192.168.1.0/24
-
 # Custom container and subnet
 curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | sudo bash -s -- --container 102 --subnet 192.168.1.0/24
-
-# Using short flags
-curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | sudo bash -s -- -c 102 -s 192.168.1.0/24
-
-# Using --ipaddr alias
-curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | sudo bash -s -- --ipaddr 10.0.0.0/16
 ```
 
 ### One-liner Installation
+
+**For Proxmox VE hosts (run as root):**
+
+```bash
+# Quick setup with default settings
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh)"
+```
+
+**For other Linux systems (with sudo):**
 
 ```bash
 # Quick setup with default settings
@@ -189,6 +212,20 @@ Please run as root
 ```
 
 Solution: Run the script with `sudo` or as root user.
+
+**Sudo command not found (Proxmox VE):**
+
+```bash
+-bash: sudo: command not found
+curl: (23) Failure writing output to destination
+```
+
+Solution: On Proxmox VE hosts, run without `sudo` as you're already logged in as root:
+
+```bash
+# Use this instead
+curl -fsSL https://raw.githubusercontent.com/niels-demeyer/subnet-tailscale-proxmox/main/subnet-tailscale.sh | bash
+```
 
 **Invalid subnet format:**
 
