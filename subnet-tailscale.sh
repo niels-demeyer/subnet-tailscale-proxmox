@@ -3,9 +3,96 @@
 
 set -e
 
-# Configuration
-CONTAINER_ID=${1:-100}
+# Default configuration
+CONTAINER_ID=100
 SUBNET="192.168.128.0/23"
+
+# Function to show usage
+show_usage() {
+    cat << EOF
+Usage: $0 [OPTIONS]
+
+Setup Tailscale subnet routing in a Proxmox LXC container.
+
+OPTIONS:
+    -c, --container ID      LXC container ID to configure (default: 100)
+    -s, --subnet CIDR       Subnet to advertise in CIDR notation (default: 192.168.128.0/23)
+    -i, --ipaddr CIDR       Alias for --subnet (subnet to advertise)
+    -h, --help              Show this help message
+
+EXAMPLES:
+    $0                                          # Use defaults (container 100, subnet 192.168.128.0/23)
+    $0 --container 102                          # Use container 102 with default subnet
+    $0 --subnet 192.168.1.0/24                 # Use default container with custom subnet
+    $0 --container 102 --subnet 192.168.1.0/24 # Custom container and subnet
+    $0 -c 102 -s 192.168.1.0/24               # Short form flags
+
+EOF
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -c|--container)
+            CONTAINER_ID="$2"
+            shift 2
+            ;;
+        -s|--subnet|-i|--ipaddr)
+            SUBNET="$2"
+            shift 2
+            ;;
+        -h|--help)
+            show_usage
+            exit 0
+            ;;
+        *)
+            echo "Error: Unknown option $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Validate container ID is numeric
+if ! [[ "$CONTAINER_ID" =~ ^[0-9]+$ ]]; then
+    echo "Error: Container ID must be numeric"
+    exit 1
+fi
+
+# Function to validate subnet format
+validate_subnet() {
+    local subnet=$1
+    # Check if subnet matches CIDR format (IP/prefix)
+    if [[ $subnet =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}/[0-9]{1,2}$ ]]; then
+        # Extract IP and prefix
+        local ip=$(echo $subnet | cut -d'/' -f1)
+        local prefix=$(echo $subnet | cut -d'/' -f2)
+        
+        # Validate IP octets
+        IFS='.' read -ra ADDR <<< "$ip"
+        for octet in "${ADDR[@]}"; do
+            if (( octet < 0 || octet > 255 )); then
+                return 1
+            fi
+        done
+        
+        # Validate prefix
+        if (( prefix < 0 || prefix > 32 )); then
+            return 1
+        fi
+        
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Validate subnet format
+if ! validate_subnet "$SUBNET"; then
+    echo "Error: Invalid subnet format '$SUBNET'"
+    echo "Please use CIDR notation (e.g., 192.168.1.0/24)"
+    exit 1
+fi
 
 echo "=== Tailscale Subnet Router Setup for LXC Container $CONTAINER_ID ==="
 echo "Subnet: $SUBNET"
