@@ -172,10 +172,9 @@ pct exec $CONTAINER_ID -- systemctl start tailscaled
 # Wait for tailscaled to be ready
 sleep 5
 
-# Start Tailscale with subnet routing (device will appear in admin console for approval)
-echo "Configuring Tailscale with subnet routing..."
-pct exec $CONTAINER_ID -- bash -c "nohup tailscale up --advertise-routes=$SUBNET --accept-routes --advertise-exit-node=false </dev/null >/dev/null 2>&1 &"
-sleep 2  # Give it a moment to start
+# Configure Tailscale for subnet routing (no authentication in script)
+echo "Configuring Tailscale service and persistence..."
+echo "Tailscale will be ready for manual authentication through the admin console."
 
 # Create a startup script to ensure Tailscale parameters persist after reboots
 echo "Creating persistent Tailscale configuration..."
@@ -183,7 +182,13 @@ pct exec $CONTAINER_ID -- tee /usr/local/bin/tailscale-startup.sh > /dev/null <<
 #!/bin/bash
 # Tailscale startup script with subnet routing
 sleep 10  # Wait for network to be ready
-tailscale up --advertise-routes=$SUBNET --accept-routes --advertise-exit-node=false
+
+# Only apply subnet routing if Tailscale is already authenticated
+if tailscale status --json 2>/dev/null | grep -q '"BackendState":"Running"'; then
+    # Already authenticated, apply/update subnet routes
+    tailscale up --advertise-routes=$SUBNET --accept-routes --advertise-exit-node=false >/dev/null 2>&1
+fi
+# Note: No authentication attempts in this script - handle via admin console
 EOF
 
 # Make the startup script executable
@@ -221,13 +226,15 @@ echo "Tailscale has been configured to:"
 echo "✓ Start automatically on container boot"
 echo "✓ Maintain subnet routing configuration after reboots"
 echo "✓ Advertise subnet: $SUBNET"
-echo "✓ Running in background (no authentication URLs shown)"
+echo "✓ Ready for manual authentication"
 echo ""
 echo "Next steps:"
-echo "1. Go to https://login.tailscale.com/admin/machines"
-echo "2. Find your container '$CONTAINER_ID' and authenticate it"
-echo "3. Approve the subnet routes for $SUBNET"
-echo "4. Test connectivity from another device on your Tailscale network"
+echo "1. SSH into the container: pct enter $CONTAINER_ID"
+echo "2. Run: tailscale up --advertise-routes=$SUBNET --accept-routes --advertise-exit-node=false"
+echo "3. Follow the authentication URL that appears"
+echo "4. Or go to https://login.tailscale.com/admin/machines to authenticate"
+echo "5. Approve the subnet routes for $SUBNET"
+echo "6. Test connectivity from another device on your Tailscale network"
 echo ""
-echo "The container will automatically maintain Tailscale subnet routing"
-echo "even after reboots. UDP GRO forwarding has been optimized on vmbr0."
+echo "After authentication, the container will automatically maintain Tailscale"
+echo "subnet routing even after reboots. UDP GRO forwarding has been optimized on vmbr0."
