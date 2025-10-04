@@ -173,7 +173,9 @@ pct exec $CONTAINER_ID -- systemctl start tailscaled
 sleep 5
 
 # Start Tailscale with subnet routing (device will appear in admin console for approval)
-pct exec $CONTAINER_ID -- timeout 10 tailscale up --advertise-routes=$SUBNET --accept-routes --advertise-exit-node=false >/dev/null 2>&1 || true
+echo "Configuring Tailscale with subnet routing..."
+pct exec $CONTAINER_ID -- bash -c "nohup tailscale up --advertise-routes=$SUBNET --accept-routes --advertise-exit-node=false </dev/null >/dev/null 2>&1 &"
+sleep 2  # Give it a moment to start
 
 # Create a startup script to ensure Tailscale parameters persist after reboots
 echo "Creating persistent Tailscale configuration..."
@@ -219,10 +221,11 @@ echo "Tailscale has been configured to:"
 echo "✓ Start automatically on container boot"
 echo "✓ Maintain subnet routing configuration after reboots"
 echo "✓ Advertise subnet: $SUBNET"
+echo "✓ Running in background (no authentication URLs shown)"
 echo ""
 echo "Next steps:"
 echo "1. Go to https://login.tailscale.com/admin/machines"
-echo "2. Find your container '$CONTAINER_ID' and authenticate it if needed"
+echo "2. Find your container '$CONTAINER_ID' and authenticate it"
 echo "3. Approve the subnet routes for $SUBNET"
 echo "4. Test connectivity from another device on your Tailscale network"
 echo ""
