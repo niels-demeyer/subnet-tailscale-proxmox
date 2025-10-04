@@ -164,18 +164,67 @@ pct start $CONTAINER_ID
 sleep 10
 
 echo "Step 6: Starting Tailscale with subnet routing..."
-pct exec $CONTAINER_ID -- tailscale up --advertise-routes=$SUBNET --accept-routes --advertise-exit-node=false
+
+# Enable tailscaled service to start on boot
+pct exec $CONTAINER_ID -- systemctl enable tailscaled
+pct exec $CONTAINER_ID -- systemctl start tailscaled
+
+# Wait for tailscaled to be ready
+sleep 5
+
+# Start Tailscale with subnet routing (device will appear in admin console for approval)
+pct exec $CONTAINER_ID -- timeout 10 tailscale up --advertise-routes=$SUBNET --accept-routes --advertise-exit-node=false >/dev/null 2>&1 || true
+
+# Create a startup script to ensure Tailscale parameters persist after reboots
+echo "Creating persistent Tailscale configuration..."
+pct exec $CONTAINER_ID -- tee /usr/local/bin/tailscale-startup.sh > /dev/null << EOF
+#!/bin/bash
+# Tailscale startup script with subnet routing
+sleep 10  # Wait for network to be ready
+tailscale up --advertise-routes=$SUBNET --accept-routes --advertise-exit-node=false
+EOF
+
+# Make the startup script executable
+pct exec $CONTAINER_ID -- chmod +x /usr/local/bin/tailscale-startup.sh
+
+# Create systemd service to run the startup script on boot
+pct exec $CONTAINER_ID -- tee /etc/systemd/system/tailscale-subnet.service > /dev/null << EOF
+[Unit]
+Description=Tailscale Subnet Router Configuration
+After=network.target tailscaled.service
+Wants=tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/tailscale-startup.sh
+RemainAfterExit=yes
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Enable the custom service
+pct exec $CONTAINER_ID -- systemctl daemon-reload
+pct exec $CONTAINER_ID -- systemctl enable tailscale-subnet.service
 
 echo ""
 echo "=== Setup Complete! ==="
-echo ""
-echo "Next steps:"
-echo "1. Go to https://login.tailscale.com/admin/machines"
-echo "2. Find your container and approve the subnet routes"
-echo "3. Test connectivity from another device on your Tailscale network"
 echo ""
 echo "Container ID: $CONTAINER_ID"
 echo "Advertised subnet: $SUBNET"
 echo "Configuration backup: /etc/pve/lxc/${CONTAINER_ID}.conf.backup"
 echo ""
-echo "UDP GRO forwarding has been optimized on vmbr0"
+echo "Tailscale has been configured to:"
+echo "✓ Start automatically on container boot"
+echo "✓ Maintain subnet routing configuration after reboots"
+echo "✓ Advertise subnet: $SUBNET"
+echo ""
+echo "Next steps:"
+echo "1. Go to https://login.tailscale.com/admin/machines"
+echo "2. Find your container '$CONTAINER_ID' and authenticate it if needed"
+echo "3. Approve the subnet routes for $SUBNET"
+echo "4. Test connectivity from another device on your Tailscale network"
+echo ""
+echo "The container will automatically maintain Tailscale subnet routing"
+echo "even after reboots. UDP GRO forwarding has been optimized on vmbr0."

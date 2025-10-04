@@ -15,6 +15,8 @@ The script configures an LXC container to act as a Tailscale subnet router, whic
 - ✅ Automatic container restart and service startup
 - ✅ Configuration backup creation
 - ✅ Container existence and status validation
+- ✅ Persistent subnet routing across container reboots
+- ✅ Automatic Tailscale service startup on boot
 
 ## Requirements
 
@@ -175,7 +177,19 @@ sudo ./subnet-tailscale.sh --subnet 172.16.0.0/16
 5. **LXC Permissions**: Configures container permissions for TUN/TAP devices
 6. **Performance Optimization**: Enables UDP GRO forwarding on the bridge interface
 7. **Service Startup**: Restarts container and starts Tailscale with subnet routing
-8. **Backup**: Creates a backup of the original container configuration
+8. **Persistence Configuration**: Creates systemd service for automatic startup
+9. **Backup**: Creates a backup of the original container configuration
+
+## Persistence and Auto-Start
+
+The script ensures that Tailscale subnet routing will work automatically even after container reboots:
+
+- **Tailscale Service**: Enabled to start automatically on boot
+- **Custom Startup Script**: `/usr/local/bin/tailscale-startup.sh` maintains subnet configuration
+- **Systemd Service**: `tailscale-subnet.service` ensures subnet routing is applied on startup
+- **Configuration Persistence**: Subnet parameters are preserved across reboots
+
+This means once you run the script and approve the device in the Tailscale admin console, the subnet routing will work permanently without any manual intervention.
 
 ## Post-Setup Steps
 
@@ -188,10 +202,16 @@ After the script completes successfully:
 
 ## Files Modified/Created
 
+**Host System:**
 - `/etc/pve/lxc/{CONTAINER_ID}.conf` - LXC container configuration
 - `/etc/pve/lxc/{CONTAINER_ID}.conf.backup` - Backup of original configuration
 - `/etc/network/if-up.d/ethtool-gro` - Persistent UDP GRO configuration
-- Container: `/etc/sysctl.conf` - IP forwarding configuration
+
+**Inside Container:**
+- `/etc/sysctl.conf` - IP forwarding configuration
+- `/usr/local/bin/tailscale-startup.sh` - Startup script for subnet routing
+- `/etc/systemd/system/tailscale-subnet.service` - Systemd service for persistence
+- Tailscale configuration files in `/var/lib/tailscale/`
 
 ## Troubleshooting
 
