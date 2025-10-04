@@ -236,6 +236,14 @@ Please use CIDR notation (e.g., 192.168.1.0/24)
 
 Solution: Ensure the subnet is in proper CIDR format with both IP address and prefix length.
 
+**PCT restart command not found:**
+
+```bash
+ERROR: unknown command 'pct restart'
+```
+
+Solution: This has been fixed in the latest version of the script. The script now uses `pct stop` followed by `pct start` instead of `pct restart` for better compatibility across Proxmox versions.
+
 **Invalid container ID:**
 
 ```bash

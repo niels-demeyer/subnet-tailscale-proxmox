@@ -156,7 +156,11 @@ EOF
 fi
 
 echo "Step 5: Restarting container to apply changes..."
-pct restart $CONTAINER_ID
+echo "Stopping container $CONTAINER_ID..."
+pct stop $CONTAINER_ID
+sleep 5
+echo "Starting container $CONTAINER_ID..."
+pct start $CONTAINER_ID
 sleep 10
 
 echo "Step 6: Starting Tailscale with subnet routing..."
