@@ -16,15 +16,18 @@ Setup Tailscale subnet routing in a Proxmox LXC container.
 
 OPTIONS:
     -c, --container ID      LXC container ID to configure (default: 100)
-    -s, --subnet CIDR       Subnet to advertise in CIDR notation (default: 192.168.128.0/23)
-    -i, --ipaddr CIDR       Alias for --subnet (subnet to advertise)
+    -s, --subnet CIDR       Subnet or IP to advertise (default: 192.168.128.0/23)
+                            - Use CIDR notation for subnets: 192.168.1.0/24
+                            - Use single IP for specific host: 192.168.1.10 (auto-converts to /32)
+    -i, --ipaddr CIDR       Alias for --subnet
     -h, --help              Show this help message
 
 EXAMPLES:
     $0                                          # Use defaults (container 100, subnet 192.168.128.0/23)
     $0 --container 102                          # Use container 102 with default subnet
-    $0 --subnet 192.168.1.0/24                 # Use default container with custom subnet
-    $0 --container 102 --subnet 192.168.1.0/24 # Custom container and subnet
+    $0 --subnet 192.168.1.0/24                 # Advertise entire /24 subnet
+    $0 --subnet 192.168.129.59                 # Advertise single IP (auto-converts to /32)
+    $0 --container 102 --subnet 192.168.1.10   # Custom container with single IP
     $0 -c 102 -s 192.168.1.0/24               # Short form flags
 
 EOF
@@ -52,6 +55,12 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Auto-convert single IP to /32 CIDR notation
+if [[ $SUBNET =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && [[ ! $SUBNET =~ / ]]; then
+    echo "Note: Converting single IP address to /32 CIDR notation: $SUBNET -> $SUBNET/32"
+    SUBNET="$SUBNET/32"
+fi
 
 # Validate container ID is numeric
 if ! [[ "$CONTAINER_ID" =~ ^[0-9]+$ ]]; then
